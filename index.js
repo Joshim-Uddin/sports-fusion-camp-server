@@ -1,5 +1,5 @@
 const express = require('express');
-const { MongoClient, ServerApiVersion } = require('mongodb');
+const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb');
 const app = express();
 const cors = require('cors');
 const jwt = require('jsonwebtoken')
@@ -41,6 +41,7 @@ const client = new MongoClient(uri, {
 });
 
 const usersCollection = client.db('sportsfusionDB').collection('users');
+const classCollection = client.db('sportsfusionDB').collection('classes');
 
 async function run() {
   try {
@@ -69,6 +70,31 @@ async function run() {
     res.send(result)
   })
 
+  app.get('/classes', async (req, res)=>{
+    const result = await classCollection.find().toArray()
+    res.send(result)
+  })
+  app.patch('/classes/:id', async (req, res)=>{
+    const id = req.params.id;
+    const status = req.body.status;
+    const filter = {_id: new ObjectId(id)}
+    const updateObject = {
+      $set:{
+        status: status,
+      }
+    }
+    const result = await classCollection.updateOne(filter, updateObject)
+    res.send(result)
+    console.log(result)
+  })
+
+  app.get('/instructorclasses', async(req, res)=>{
+    const email = req.query.email;
+    const query = {email: email}
+    const result = await classCollection.find(query).toArray()
+    res.send(result)
+  })
+
     app.post('/users', async (req, res)=>{
         const user = req.body;
         const query = {email: user.email}
@@ -78,6 +104,26 @@ async function run() {
         }
         const result = await usersCollection.insertOne(user)
         res.send(result)
+      })
+      app.post('/addclass', async (req, res) => {
+        const myClass = req.body;
+       const result = await classCollection.insertOne(myClass)
+       res.send(result)
+      })
+      app.put('/user', async(req, res) => {
+        const email = req.query.email;
+        const role = req.body.role;
+        const filter = {
+          email: email
+        }
+        const updateDoc = {
+          $set:{
+            role: role
+          }
+        }
+
+         const result  = await usersCollection.updateOne(filter, updateDoc)
+         res.send(result);
       })
 
     // Send a ping to confirm a successful connection
