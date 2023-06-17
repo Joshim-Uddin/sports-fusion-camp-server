@@ -63,8 +63,12 @@ async function run() {
       })
 
     //users admin or user role get
-    app.get('/user', async(req, res) => {
+    app.get('/user',verifyJwt, async(req, res) => {
     const email = req.query.email;
+    const decoded = req.decoded;
+    if(decoded.email!==email){
+      return res.status(403).send({error:1, message: "Forbidden Access"});
+    }
     const query = {
       email: email
     }
@@ -81,7 +85,7 @@ async function run() {
     res.send(result)
   })
   app.get('/popularclasses', async (req, res)=>{
-    const result = (await classCollection.find().sort({students : -1}).toArray()).slice(0,5);
+    const result = (await classCollection.find().sort({students : -1}).toArray()).slice(0,6);
     res.send(result)
   })
   app.patch('/classes/:id', async (req, res)=>{
@@ -98,20 +102,32 @@ async function run() {
     console.log(result)
   })
 
-  app.get('/instructorclasses', async(req, res)=>{
+  app.get('/instructorclasses', verifyJwt, async(req, res)=>{
+    const decoded = req.decoded;
     const email = req.query.email;
+    if(decoded.email!==email){
+      return res.status(403).send({error:1, message: "Forbidden Access"});
+    }
     const query = {email: email}
     const result = await classCollection.find(query).toArray()
     res.send(result)
   })
-  app.get('/selectclass', async (req, res) => {
+  app.get('/selectclass',verifyJwt, async (req, res) => {
+    const decoded = req.decoded;
     const email = req.query.email;
+    if(decoded.email!==email){
+      return res.status(403).send({error:1, message: "Forbidden Access"});
+    }
     const query = {email:email}
    const result = await selectCollection.find(query).toArray();
    res.send(result)
   })
-  app.get('/enrolledclass', async (req, res) => {
+  app.get('/enrolledclass',verifyJwt, async (req, res) => {
+    const decoded = req.decoded;
     const email = req.query.email;
+    if(decoded.email!==email){
+      return res.status(403).send({error:1, message: "Forbidden Access"});
+    }
     const query = {email:email}
    const result = await enrolledCollection.find(query).toArray();
    res.send(result)
@@ -222,8 +238,12 @@ async function run() {
     const query = {transactionId: req.params.transId}
     const result = await enrolledCollection.deleteOne(query)
   })
-  app.put('/user', async(req, res) => {
-        const email = req.query.email;
+  app.put('/user', verifyJwt, async(req, res) => {
+    const decoded = req.decoded;
+    const email = req.query.email;
+    if(decoded.email!==email){
+      return res.status(403).send({error:1, message: "Forbidden Access"});
+    }
         const role = req.body.role;
         const filter = {
           email: email
