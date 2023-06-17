@@ -3,6 +3,7 @@ const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb');
 const app = express();
 const cors = require('cors');
 const jwt = require('jsonwebtoken')
+const SSLCommerzPayment = require('sslcommerz-lts')
 require('dotenv').config()
 const port = process.env.PORT || 5000
 app.use(express.json())
@@ -30,6 +31,9 @@ const verifyJwt = (req, res, next)=>{
 
 const uri = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASS}@cluster0.x5isz8r.mongodb.net/?retryWrites=true&w=majority`;
  
+const store_id = process.env.STORE_ID
+const store_passwd = process.env.STORE_PASS
+const is_live = false //true for live, false for sandbox
 
 // Create a MongoClient with a MongoClientOptions object to set the Stable API version
 const client = new MongoClient(uri, {
@@ -43,6 +47,7 @@ const client = new MongoClient(uri, {
 const usersCollection = client.db('sportsfusionDB').collection('users');
 const classCollection = client.db('sportsfusionDB').collection('classes');
 const selectCollection = client.db('sportsfusionDB').collection('selections');
+const enrolledCollection = client.db('sportsfusionDB').collection('enrolled');
 
 async function run() {
   try {
@@ -101,8 +106,14 @@ async function run() {
    const result = await selectCollection.find(query).toArray();
    res.send(result)
   })
+  app.get('/enrolledclass', async (req, res) => {
+    const email = req.query.email;
+    const query = {email:email}
+   const result = await enrolledCollection.find(query).toArray();
+   res.send(result)
+  })
 
-    app.post('/users', async (req, res)=>{
+  app.post('/users', async (req, res)=>{
         const user = req.body;
         const query = {email: user.email}
         const existing = await usersCollection.findOne(query)
@@ -112,17 +123,98 @@ async function run() {
         const result = await usersCollection.insertOne(user)
         res.send(result)
       })
-      app.post('/addclass', async (req, res) => {
+  app.post('/addclass', async (req, res) => {
         const myClass = req.body;
        const result = await classCollection.insertOne(myClass)
        res.send(result)
       })
-      app.post('/selectclass', async (req, res) => {
+  app.post('/selectclass', async (req, res) => {
         const selected = req.body;
-       const result = await selectCollection.insertOne(selected)
-       res.send(result)
+        const query = {classId: selected.classId, email: selected.email}
+        const existing = await selectCollection.findOne(query)
+        if(existing){
+          return res.send({status:'Failed'})
+        }else{
+          const result = await selectCollection.insertOne(selected)
+          res.send(result)
+        }
+      
       })
-      app.put('/user', async(req, res) => {
+  const trans_Id = new ObjectId().toString()
+
+  app.post('/enroll', async (req, res) =>{
+    const item = req.body
+    const id = item._id
+    const query = {_id: new ObjectId(id)}
+    const product = await selectCollection.findOne(query)
+    const updateDoc = {
+      $set:{seats:product.seats - 1}
+    }
+    const deleted = await selectCollection.deleteOne(query)
+    const updatedClasses = await classCollection.updateOne({_id:new ObjectId(product.classId)}, updateDoc)
+
+    const data = {
+      total_amount: product.price,
+      currency: 'BDT',
+      tran_id: trans_Id, // use unique tran_id for each api call
+      success_url: `http://localhost:5000/payment/success/${trans_Id}`,
+      fail_url: 'http://localhost:3030/fail',
+      cancel_url: 'http://localhost:3030/cancel',
+      ipn_url: 'http://localhost:3030/ipn',
+      shipping_method: 'Courier',
+      product_name: 'Computer.',
+      product_category: 'Electronic',
+      product_profile: 'general',
+      cus_name: 'Customer Name',
+      cus_email: product.email,
+      cus_add1: 'Dhaka',
+      cus_add2: 'Dhaka',
+      cus_city: 'Dhaka',
+      cus_state: 'Dhaka',
+      cus_postcode: '1000',
+      cus_country: 'Bangladesh',
+      cus_phone: '01711111111',
+      cus_fax: '01711111111',
+      ship_name: 'Customer Name',
+      ship_add1: 'Dhaka',
+      ship_add2: 'Dhaka',
+      ship_city: 'Dhaka',
+      ship_state: 'Dhaka',
+      ship_postcode: 1000,
+      ship_country: 'Bangladesh',
+  };
+  const sslcz = new SSLCommerzPayment(store_id, store_passwd, is_live)
+  sslcz.init(data).then(apiResponse => {
+      // Redirect the user to payment gateway
+      let GatewayPageURL = apiResponse.GatewayPageURL
+      res.send({url:GatewayPageURL})
+    const finalOrder = {
+      transactionId: trans_Id, 
+      email: product.email,
+      classId: product._id,
+      paidStatus: false
+    }
+   
+      const result = enrolledCollection.insertOne(finalOrder)
+   
+    
+
+  });
+  })
+  app.post('/payment/success/:transId', async(req, res)=>{
+    const query = {transactionId: req.params.transId}
+    const updateDoc = {
+      $set :{
+        paidStatus: true,
+      }
+    }
+    const result = await enrolledCollection.updateOne(query, updateDoc)
+    if(result.modifiedCount>0){
+      res.redirect(`http://localhost:5173/dashboard/selected/${trans_Id}`)
+    }
+
+  })
+  app.put('/user', async(req, res) => {
         const email = req.query.email;
         const role = req.body.role;
         const filter = {
@@ -138,7 +230,7 @@ async function run() {
          res.send(result);
       })
 
-      app.delete('/selectclass/:id', async (req, res) => {
+  app.delete('/selectclass/:id', async (req, res) => {
         const id = req.params.id
         const query = {_id:new ObjectId(id)}
        const result = await selectCollection.deleteOne(query);
