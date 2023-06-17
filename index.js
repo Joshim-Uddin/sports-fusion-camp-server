@@ -42,6 +42,7 @@ const client = new MongoClient(uri, {
 
 const usersCollection = client.db('sportsfusionDB').collection('users');
 const classCollection = client.db('sportsfusionDB').collection('classes');
+const selectCollection = client.db('sportsfusionDB').collection('selections');
 
 async function run() {
   try {
@@ -94,6 +95,12 @@ async function run() {
     const result = await classCollection.find(query).toArray()
     res.send(result)
   })
+  app.get('/selectclass', async (req, res) => {
+    const email = req.query.email;
+    const query = {email:email}
+   const result = await selectCollection.find(query).toArray();
+   res.send(result)
+  })
 
     app.post('/users', async (req, res)=>{
         const user = req.body;
@@ -110,6 +117,11 @@ async function run() {
        const result = await classCollection.insertOne(myClass)
        res.send(result)
       })
+      app.post('/selectclass', async (req, res) => {
+        const selected = req.body;
+       const result = await selectCollection.insertOne(selected)
+       res.send(result)
+      })
       app.put('/user', async(req, res) => {
         const email = req.query.email;
         const role = req.body.role;
@@ -124,6 +136,13 @@ async function run() {
 
          const result  = await usersCollection.updateOne(filter, updateDoc)
          res.send(result);
+      })
+
+      app.delete('/selectclass/:id', async (req, res) => {
+        const id = req.params.id
+        const query = {_id:new ObjectId(id)}
+       const result = await selectCollection.deleteOne(query);
+       res.send(result)
       })
 
     // Send a ping to confirm a successful connection
