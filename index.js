@@ -80,6 +80,10 @@ async function run() {
     const result = await classCollection.find().toArray()
     res.send(result)
   })
+  app.get('/popularclasses', async (req, res)=>{
+    const result = (await classCollection.find().sort({students : -1}).toArray()).slice(0,5);
+    res.send(result)
+  })
   app.patch('/classes/:id', async (req, res)=>{
     const id = req.params.id;
     const status = req.body.status;
@@ -148,7 +152,7 @@ async function run() {
     const query = {_id: new ObjectId(id)}
     const product = await selectCollection.findOne(query)
     const updateDoc = {
-      $set:{seats:product.seats - 1, students:product.students+1}
+      $set:{seats:product.seats - 1, students:product.students + 1}
     }
     const deleted = await selectCollection.deleteOne(query)
     const updatedClasses = await classCollection.updateOne({_id:new ObjectId(product.classId)}, updateDoc)
