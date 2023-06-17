@@ -148,7 +148,7 @@ async function run() {
     const query = {_id: new ObjectId(id)}
     const product = await selectCollection.findOne(query)
     const updateDoc = {
-      $set:{seats:product.seats - 1}
+      $set:{seats:product.seats - 1, students:product.students+1}
     }
     const deleted = await selectCollection.deleteOne(query)
     const updatedClasses = await classCollection.updateOne({_id:new ObjectId(product.classId)}, updateDoc)
@@ -158,7 +158,7 @@ async function run() {
       currency: 'BDT',
       tran_id: trans_Id, // use unique tran_id for each api call
       success_url: `http://localhost:5000/payment/success/${trans_Id}`,
-      fail_url: 'http://localhost:3030/fail',
+      fail_url: `http://localhost:5000/fail/${trans_Id}`,
       cancel_url: 'http://localhost:3030/cancel',
       ipn_url: 'http://localhost:3030/ipn',
       shipping_method: 'Courier',
@@ -213,6 +213,10 @@ async function run() {
       res.redirect(`http://localhost:5173/dashboard/selected/${trans_Id}`)
     }
 
+  })
+  app.delete('/fail:transId', async(req, res)=>{
+    const query = {transactionId: req.params.transId}
+    const result = await enrolledCollection.deleteOne(query)
   })
   app.put('/user', async(req, res) => {
         const email = req.query.email;
