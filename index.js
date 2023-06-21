@@ -7,6 +7,7 @@ const SSLCommerzPayment = require('sslcommerz-lts')
 require('dotenv').config()
 const port = process.env.PORT || 5000
 app.use(express.json())
+
 app.use(cors())
 
 
@@ -52,7 +53,7 @@ const enrolledCollection = client.db('sportsfusionDB').collection('enrolled');
 async function run() {
   try {
     // Connect the client to the server	(optional starting in v4.7)
-    await client.connect();
+    //await client.connect();
    
 
      //jwt authentication
@@ -63,12 +64,12 @@ async function run() {
       })
 
     //users admin or user role get
-    app.get('/user',verifyJwt, async(req, res) => {
+    app.get('/user', async(req, res) => {
     const email = req.query.email;
-    const decoded = req.decoded;
-    if(decoded.email!==email){
-      return res.status(403).send({error:1, message: "Forbidden Access"});
-    }
+    // const decoded = req.decoded;
+    // if(decoded.email!==email){
+    //   return res.status(403).send({error:1, message: "Forbidden Access"});
+    // }
     const query = {
       email: email
     }
@@ -102,32 +103,102 @@ async function run() {
     console.log(result)
   })
 
-  app.get('/instructorclasses', verifyJwt, async(req, res)=>{
-    const decoded = req.decoded;
+app.get('/popularinstructor', async(req, res) => {
+ const result = await classCollection.aggregate([
+  {
+    $group:
+      /**
+       * _id: The id of the group.
+       * fieldN: The first field name.
+       */
+      {
+        _id: "$email",
+        studentsCount: {
+          $sum: "$students",
+        },
+      },
+  },
+  {
+    $sort: {
+      studentCount: -1,
+    },
+  },
+  {
+    $lookup:
+      /**
+       * from: The target collection.
+       * localField: The local join field.
+       * foreignField: The target join field.
+       * as: The name for the results.
+       * pipeline: Optional pipeline to run on the foreign collection.
+       * let: Optional variables to use in the pipeline field stages.
+       */
+      {
+        from: "users",
+        localField: "_id",
+        foreignField: "email",
+        as: "instructorDetails",
+      },
+  },
+  {
+    $unwind:
+      /**
+       * path: Path to the array field.
+       * includeArrayIndex: Optional name for index.
+       * preserveNullAndEmptyArrays: Optional
+       *   toggle to unwind null and empty values.
+       */
+      {
+        path: "$instructorDetails",
+      },
+  },
+  {
+    $project:
+      /**
+       * specifications: The fields to
+       *   include or exclude.
+       */
+      {
+        _id: 0,
+        name: "$instructorDetails.name",
+        studentCount: 1,
+        instructorEmail:
+          "$instructorDetails.email",
+        instructorImage:
+          "$instructorDetails.image",
+        instructorRole: "$instructorDetails.role",
+      },
+  },
+]).toArray()
+res.send(result)
+})
+
+  app.get('/instructorclasses', async(req, res)=>{
+    // const decoded = req.decoded;
     const email = req.query.email;
-    if(decoded.email!==email){
-      return res.status(403).send({error:1, message: "Forbidden Access"});
-    }
+    // if(decoded.email!==email){
+    //   return res.status(403).send({error:1, message: "Forbidden Access"});
+    // }
     const query = {email: email}
     const result = await classCollection.find(query).toArray()
     res.send(result)
   })
-  app.get('/selectclass',verifyJwt, async (req, res) => {
-    const decoded = req.decoded;
+  app.get('/selectclass', async (req, res) => {
+    //const decoded = req.decoded;
     const email = req.query.email;
-    if(decoded.email!==email){
-      return res.status(403).send({error:1, message: "Forbidden Access"});
-    }
+    // if(decoded.email!==email){
+    //   return res.status(403).send({error:1, message: "Forbidden Access"});
+    // }
     const query = {email:email}
    const result = await selectCollection.find(query).toArray();
    res.send(result)
   })
-  app.get('/enrolledclass',verifyJwt, async (req, res) => {
-    const decoded = req.decoded;
+  app.get('/enrolledclass', async (req, res) => {
+    //const decoded = req.decoded;
     const email = req.query.email;
-    if(decoded.email!==email){
-      return res.status(403).send({error:1, message: "Forbidden Access"});
-    }
+    // if(decoded.email!==email){
+    //   return res.status(403).send({error:1, message: "Forbidden Access"});
+    // }
     const query = {email:email}
    const result = await enrolledCollection.find(query).toArray();
    res.send(result)
@@ -238,12 +309,8 @@ async function run() {
     const query = {transactionId: req.params.transId}
     const result = await enrolledCollection.deleteOne(query)
   })
-  app.put('/user', verifyJwt, async(req, res) => {
-    const decoded = req.decoded;
+  app.put('/user', async(req, res) => {
     const email = req.query.email;
-    if(decoded.email!==email){
-      return res.status(403).send({error:1, message: "Forbidden Access"});
-    }
         const role = req.body.role;
         const filter = {
           email: email
