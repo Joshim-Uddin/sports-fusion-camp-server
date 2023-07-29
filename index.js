@@ -161,7 +161,6 @@ app.get('/popularinstructor', async(req, res) => {
       {
         _id: 0,
         name: "$instructorDetails.name",
-        studentCount: 1,
         instructorEmail:
           "$instructorDetails.email",
         instructorImage:
@@ -170,7 +169,7 @@ app.get('/popularinstructor', async(req, res) => {
       },
   },
 ]).toArray()
-res.send(result)
+res.send(result.slice(0,6))
 })
 
   app.get('/instructorclasses', async(req, res)=>{
@@ -248,8 +247,8 @@ res.send(result)
       total_amount: product.price,
       currency: 'BDT',
       tran_id: trans_Id, // use unique tran_id for each api call
-      success_url: `http://localhost:5000/payment/success/${trans_Id}`,
-      fail_url: `http://localhost:5000/fail/${trans_Id}`,
+      success_url: `https://b7a12-summer-camp-server-side-joshim-uddin-joshim-uddin.vercel.app/success/${trans_Id}`,
+      fail_url: `https://b7a12-summer-camp-server-side-joshim-uddin-joshim-uddin.vercel.app/fail/${trans_Id}`,
       cancel_url: 'http://localhost:3030/cancel',
       ipn_url: 'http://localhost:3030/ipn',
       shipping_method: 'Courier',
@@ -292,7 +291,7 @@ res.send(result)
 
   });
   })
-  app.post('/payment/success/:transId', async(req, res)=>{
+  app.post('/success/:transId', async(req, res)=>{
     const query = {transactionId: req.params.transId}
     const updateDoc = {
       $set :{
@@ -301,7 +300,9 @@ res.send(result)
     }
     const result = await enrolledCollection.updateOne(query, updateDoc)
     if(result.modifiedCount>0){
-      res.redirect(`http://localhost:5173/dashboard/selected/${trans_Id}`)
+      setTimeout(() =>{
+        res.redirect("https://sports-fushion-camp-a87dd.web.app/dashboard/selected")
+      },5000)
     }
 
   })
