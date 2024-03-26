@@ -5,30 +5,14 @@ const cors = require('cors');
 const jwt = require('jsonwebtoken')
 const SSLCommerzPayment = require('sslcommerz-lts')
 require('dotenv').config()
+const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY)
 const port = process.env.PORT || 5000
 app.use(express.json())
 
 app.use(cors())
 
 
-const verifyJwt = (req, res, next)=>{
-    const authorization = req.headers.authorization;
-    if (!authorization){
-      res.status(401).send({error:true, message: 'Invalid authorization'})
-    }
-    const token = authorization.split(' ')[1]
-    if(!token){
-      res.status(403).send({error:true, message: 'Invalid token'})
-    }
-    jwt.verify(token, process.env.JWT_TOKEN_KEY, (err, decoded)=>{
-      if(err){
-        res.status(403).send({error:true, message:"UnAuthorized Access"})
-      }
-      req.decoded = decoded;
-      next()
-    })
-    
-  }
+
 
 const uri = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASS}@cluster0.x5isz8r.mongodb.net/?retryWrites=true&w=majority`;
  
@@ -54,7 +38,27 @@ async function run() {
   try {
     // Connect the client to the server	(optional starting in v4.7)
     //await client.connect();
-   
+
+    //JWT verification
+    const verifyJwt = (req, res, next)=>{
+      const authorization = req.headers.authorization;
+      if (!authorization){
+        return res.status(401).send({error:true, message: 'Invalid authorization'})
+      }
+      const token = authorization?.split(' ')[1]
+      if(!token){
+        return res.status(403).send({error:true, message: 'Invalid token'})
+      }
+      jwt.verify(token, process.env.JWT_VERIFY_TOKEN, (err, decoded)=>{
+        if(err){
+         return res.status(403).send({error:true, message:"UnAuthorized Access"})
+        } 
+        req.decoded = decoded;
+        next()
+      })
+      
+    }
+
 
      //jwt authentication
      app.post('/jwt', async (req, res)=>{
@@ -66,16 +70,14 @@ async function run() {
     //users admin or user role get
     app.get('/user', async(req, res) => {
     const email = req.query.email;
-    // const decoded = req.decoded;
-    // if(decoded.email!==email){
-    //   return res.status(403).send({error:1, message: "Forbidden Access"});
-    // }
     const query = {
       email: email
     }
      const result  = await usersCollection.findOne(query)
      res.send(result);
   })
+
+  //users list
   app.get('/users', async (req, res)=>{
     const result = await usersCollection.find().toArray()
     res.send(result)
@@ -86,7 +88,7 @@ async function run() {
     res.send(result)
   })
   app.get('/popularclasses', async (req, res)=>{
-    const result = (await classCollection.find().sort({students : -1}).toArray()).slice(0,6);
+    const result = (await classCollection.find().sort({students : -1}).toArray()).slice(0,9);
     res.send(result)
   })
   app.patch('/classes/:id', async (req, res)=>{
@@ -100,7 +102,6 @@ async function run() {
     }
     const result = await classCollection.updateOne(filter, updateObject)
     res.send(result)
-    console.log(result)
   })
 
 app.get('/popularinstructor', async(req, res) => {
@@ -173,7 +174,7 @@ res.send(result.slice(0,6))
 })
 
   app.get('/instructorclasses', async(req, res)=>{
-    // const decoded = req.decoded;
+    //const decoded = req.decoded;
     const email = req.query.email;
     // if(decoded.email!==email){
     //   return res.status(403).send({error:1, message: "Forbidden Access"});
@@ -182,28 +183,28 @@ res.send(result.slice(0,6))
     const result = await classCollection.find(query).toArray()
     res.send(result)
   })
-  app.get('/selectclass', async (req, res) => {
-    //const decoded = req.decoded;
+  app.get('/selectclass', verifyJwt, async (req, res) => {
+    const decoded = req.decoded;
     const email = req.query.email;
-    // if(decoded.email!==email){
-    //   return res.status(403).send({error:1, message: "Forbidden Access"});
-    // }
     const query = {email:email}
-   const result = await selectCollection.find(query).toArray();
-   res.send(result)
+    if(decoded.email!==email){
+      return res.status(403).send({error:1, message: "Forbidden Access"});
+    }
+      const result = await selectCollection.find(query).toArray();
+      res.send(result)
   })
-  app.get('/enrolledclass', async (req, res) => {
-    //const decoded = req.decoded;
+  app.get('/enrolledclass', verifyJwt, async (req, res) => {
+    const decoded = req.decoded;
     const email = req.query.email;
-    // if(decoded.email!==email){
-    //   return res.status(403).send({error:1, message: "Forbidden Access"});
-    // }
+    if(decoded?.email!==email){
+      return res.status(403).send({error:true, message: "Forbidden Access"});
+    }
     const query = {email:email}
-   const result = await enrolledCollection.find(query).toArray();
-   res.send(result)
+    const result = await enrolledCollection.find(query).toArray();
+    res.send(result)
   })
 
-  app.post('/users', async (req, res)=>{
+  app.post('/adduser', async (req, res)=>{
         const user = req.body;
         const query = {email: user.email}
         const existing = await usersCollection.findOne(query)
@@ -230,6 +231,22 @@ res.send(result.slice(0,6))
         }
       
       })
+
+  //create intent for stripe
+  app.post('/create-payment-intent', async (req, res) => {
+    const {price} = req.body;
+    const amount = parseInt(price * 100)
+    const paymentIntent= await stripe.paymentIntents.create({
+      amount: amount,
+      currency: 'usd',
+      payment_method_types:[
+        'card'
+      ]
+    })
+    res.send({
+      client_secret: paymentIntent.client_secret
+    })
+  })
   const trans_Id = new ObjectId().toString()
 
   app.post('/enroll', async (req, res) =>{
@@ -237,6 +254,7 @@ res.send(result.slice(0,6))
     const id = item._id
     const query = {_id: new ObjectId(id)}
     const product = await selectCollection.findOne(query)
+    console.log(product);
     const updateDoc = {
       $set:{seats:product.seats - 1, students:product.students + 1}
     }
@@ -279,9 +297,13 @@ res.send(result.slice(0,6))
       let GatewayPageURL = apiResponse.GatewayPageURL
       res.send({url:GatewayPageURL})
     const finalOrder = {
+      name: product.className,
+      image:product.classImage,
+      instructor: product.instructorName,
       transactionId: trans_Id, 
       email: product.email,
-      classId: product._id,
+      classId: new ObjectId(`${product.classId}`),
+      paidAmount: product.price,
       paidStatus: false
     }
    
@@ -310,7 +332,7 @@ res.send(result.slice(0,6))
     const query = {transactionId: req.params.transId}
     const result = await enrolledCollection.deleteOne(query)
   })
-  app.put('/user', async(req, res) => {
+  app.put('/updateuser', async(req, res) => {
     const email = req.query.email;
         const role = req.body.role;
         const filter = {
