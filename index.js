@@ -59,7 +59,7 @@ async function run() {
       
     }
 
-
+    
      //jwt authentication
      app.post('/jwt', async (req, res)=>{
         const user = req.body;
@@ -183,13 +183,9 @@ res.send(result.slice(0,6))
     const result = await classCollection.find(query).toArray()
     res.send(result)
   })
-  app.get('/selectclass', verifyJwt, async (req, res) => {
-    const decoded = req.decoded;
+  app.get('/selectclass',  async (req, res) => {
     const email = req.query.email;
     const query = {email:email}
-    if(decoded.email!==email){
-      return res.status(403).send({error:1, message: "Forbidden Access"});
-    }
       const result = await selectCollection.find(query).toArray();
       res.send(result)
   })
